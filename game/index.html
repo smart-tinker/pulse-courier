@@ -1,0 +1,14 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Импульс</title><link rel="stylesheet" href="./style.css"><script type="module" src="./app.mjs"></script></head>
+<body><main>
+<header><h1>ИМПУЛЬС</h1><div class="score"><span id="stage">КПП 01 / 12</span><span id="best">ЛУЧШИЙ 00</span></div></header>
+<p class="intro">Заряди толчок и проведи дрон через просвет. Чем дольше держишь, тем выше полёт.</p>
+<section class="field" aria-label="Дрон и движущиеся ворота">
+<div class="sun"></div><div class="horizon"></div><div class="grid"></div>
+<div class="guide" id="aim"></div>
+<div class="gate one" aria-hidden="true"><i></i><b></b></div><div class="gate two" aria-hidden="true"><i></i><b></b></div><div class="gate three" aria-hidden="true"><i></i><b></b></div>
+<div id="drone" aria-hidden="true"><i></i><b></b><span>◆</span></div>
+</section>
+<div class="control"><button id="pause" type="button" aria-pressed="false" aria-label="Пауза">Ⅱ</button><button id="launch" type="button">Зажми, чтобы зарядить</button><button id="retry" type="button" aria-label="Начать заново">↻</button></div>
+<div class="power"><span>ЗАРЯД</span><progress id="charge" max="100" value="0" aria-label="Заряд"></progress></div>
+<p id="status" role="status">Держи пробел или кнопку, затем отпусти.</p>
+</main></body></html>

@@ -1,0 +1,62 @@
+name: Validate
+on:
+  pull_request:
+  push:
+    branches: [main, feat/pilot]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test test/model.test.mjs
+      - name: Package and verify portable build
+        id: pack
+        run: |
+          bash test/package.sh pulse-courier
+          unzip -t pulse-courier.zip
+          test "$(unzip -Z1 pulse-courier.zip | head -n1)" = index.html
+          unzip -q pulse-courier.zip -d packed
+          sha256sum pulse-courier.zip
+          echo "sha256=$(sha256sum pulse-courier.zip | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Browser tests from portable ZIP
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx --no-install playwright install --with-deps chromium
+          node test/browser.mjs
+  draft:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pilot'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Rebuild the verified ZIP
+        env:
+          VERIFIED_SHA: ${{ needs.verify.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          bash test/package.sh pulse-courier
+          sha256sum pulse-courier.zip > SHA256SUMS
+          test "$(cut -d ' ' -f1 SHA256SUMS)" = "$VERIFIED_SHA"
+      - name: Save unpublished GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=v0.1.0-rc.1
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Existing release or draft left unchanged"
+            exit 1
+          fi
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --latest=false --title 'Импульс · RC1' --notes "Source: $GITHUB_SHA. CI: $GITHUB_RUN_ID. Not submitted to a platform." pulse-courier.zip SHA256SUMS
