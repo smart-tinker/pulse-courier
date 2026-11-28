@@ -1,4 +1,4 @@
-import { TOTAL, FLIGHT, CHARGE, center, halfGap, height, newRun, land, nextBest } from './model.mjs';
+import { TOTAL, FLIGHT, CHARGE, TRAINING_GATE, center, halfGap, height, newRun, land, nextBest } from './model.mjs';
 const q=id=>document.getElementById(id);
 const stage=q('stage'), bestLabel=q('best'), drone=q('drone'), aim=q('aim'), launch=q('launch');
 const meter=q('charge'), status=q('status'), pause=q('pause'), retry=q('retry');
@@ -14,7 +14,7 @@ let run, t, initial, charge, shot, paused, now, missAt;
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const format=n=>String(n).padStart(2,'0'), seconds=ms=>(ms/1000).toFixed(1)+' с';
 function hud(){
-  stage.textContent='КПП '+format(Math.min(TOTAL,run.gate+1))+' / '+TOTAL;
+  stage.textContent=run.gate===TRAINING_GATE?'ТРЕНИРОВКА':'КПП '+format(Math.min(TOTAL,run.gate+1))+' / '+TOTAL;
   bestLabel.textContent='ЛУЧШИЙ '+format(best)+(bestTime===null?'':' · '+seconds(bestTime));
   pause.setAttribute('aria-pressed',String(paused));
   pause.textContent=paused?'▶':'Ⅱ';
@@ -24,8 +24,8 @@ function hud(){
   launch.textContent=run.state==='ready'?'Зажми, чтобы зарядить':'Ещё попытка';
 }
 function reset(){
-  run=newRun();t=0;initial=true;charge=null;shot=null;paused=false;now=null;missAt=null;miss.hidden=true;impact.style.removeProperty('top');hud();
-  status.textContent='Держи пробел или кнопку, затем отпусти.';
+  run={...newRun(),gate:TRAINING_GATE};t=0;initial=true;charge=null;shot=null;paused=false;now=null;missAt=null;miss.hidden=true;impact.style.removeProperty('top');hud();
+  status.textContent='Тренировка: проём неподвижен. Держи пробел или кнопку, затем отпусти.';
 }
 function begin(){
   if(paused||shot||charge!==null)return;
@@ -45,13 +45,18 @@ function finish(){
   const arrival=shot.t+FLIGHT;
   run=land(run,shot.held,arrival);
   shot=null;
+  if(previous===TRAINING_GATE&&run.state==='ready'){
+    run=newRun();t=0;initial=true;
+    status.textContent='Тренировка пройдена. Теперь проём движется.';
+    hud();return;
+  }
   if(run.gate>best){best=nextBest(best,run);try{localStorage.setItem(bestKey,String(best))}catch{}}
   if(run.state==='lost'){
     missAt=arrival;
     impact.style.top=run.y+'%';
     miss.hidden=false;
     const where=run.y<center(previous,arrival)?'выше':'ниже';
-    status.textContent='Мимо просвета: '+where+'. Ромб показывает точку попадания, штрихи — границы просвета. Пройдено '+run.gate+' из '+TOTAL+' КПП.';
+    status.textContent='Мимо просвета: '+where+'. Ромб показывает точку попадания, штрихи — границы просвета. Пройдено ' + Math.max(0,run.gate)+' из '+TOTAL+' КПП.';
   }
   else if(run.state==='won'){
     const elapsed=Math.round(arrival);
@@ -80,7 +85,7 @@ function loop(stamp){
   aim.dataset.aligned=String(Math.abs(height(h)-center(Math.min(run.gate,TOTAL-1),t+FLIGHT))<=halfGap(Math.min(run.gate,TOTAL-1)));
   gates.forEach((g,i)=>{
     const n=run.gate+i;
-    g.hidden=n>=TOTAL;
+    g.hidden=n>=TOTAL||(run.gate===TRAINING_GATE&&i>0);
     if(!g.hidden){g.style.setProperty('--mid',center(n,missAt??t)+'%');g.style.setProperty('--gap',halfGap(n)+'%')}
   });
   requestAnimationFrame(loop);
