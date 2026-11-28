@@ -96,6 +96,7 @@ async function checkPulse(desktop,mobile) {
   await checkMiss(desktop,864,'выше');
   await passTraining(desktop);
   await desktop.locator('#retry').click();
+  await desktop.locator('#launch').focus();
   await desktop.clock.runFor(32);
   await passTraining(desktop);
   await desktop.locator('#pause').click();
