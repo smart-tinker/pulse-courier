@@ -40,12 +40,31 @@ async function screenshot(page,file){
     await page.screenshot({path:process.env.QA_SCREENSHOTS+'/'+file+'.png',animations:'disabled'});
   }
 }
+async function passTraining(page) {
+  const gate=page.locator('.gate.one');
+  const phase=()=>gate.evaluate(g=>parseFloat(g.style.getPropertyValue('--mid')));
+  assert.equal(await page.locator('#stage').textContent(),'ТРЕНИРОВКА');
+  assert.equal(await page.locator('.gate.two').isVisible(),false);
+  const before=await phase();
+  assert.equal(before,50);
+  assert.equal(await gate.evaluate(g=>parseFloat(g.style.getPropertyValue('--gap'))),halfGap(0));
+  await page.keyboard.down('Space');
+  await page.clock.runFor(480);
+  assert.equal(await phase(),before);
+  await page.keyboard.up('Space');
+  await page.clock.runFor(390);
+  assert.match(await page.locator('#status').textContent(),/Тренировка пройдена/);
+  assert.match(await page.locator('#stage').textContent(),/КПП 01 \/ 12/);
+  assert.equal(await page.locator('.gate.two').isVisible(),true);
+}
 async function checkMiss(page,hold,side) {
+  await passTraining(page);
   const marker=page.locator('#miss');
   assert.equal(await marker.isVisible(),false);
   await page.keyboard.down('Space');
   await page.clock.runFor(hold);
   const before=await page.locator('.gate.one').evaluate(g=>parseFloat(g.style.getPropertyValue('--mid')));
+  assert.ok(before>50,'First campaign gate must move');
   const aimed=await page.locator('#aim').evaluate(g=>parseFloat(g.style.top));
   // Both releases precede the first gate's peak, so its rendered phase is invertible here.
   const arrival=615*Math.asin((before-50)/12)+FLIGHT;
@@ -68,11 +87,17 @@ async function checkMiss(page,hold,side) {
   assert.ok(Math.abs(await page.locator('.gate.one').evaluate(g=>parseFloat(g.style.getPropertyValue('--mid')))-mid)<1e-9);
   await page.locator('#launch').click();
   assert.equal(await marker.isVisible(),false);
+  assert.equal(await page.locator('#stage').textContent(),'ТРЕНИРОВКА');
+  await page.clock.runFor(32);
 }
 async function checkPulse(desktop,mobile) {
   const status=desktop.locator('#status');
   await checkMiss(desktop,48,'ниже');
   await checkMiss(desktop,864,'выше');
+  await passTraining(desktop);
+  await desktop.locator('#retry').click();
+  await desktop.clock.runFor(32);
+  await passTraining(desktop);
   await desktop.locator('#pause').click();
   assert.equal(await desktop.locator('#launch').isDisabled(),true);
   await desktop.locator('#pause').click();
@@ -103,6 +128,11 @@ async function checkPulse(desktop,mobile) {
   const start=await mobile.locator('#launch').boundingBox();
   const x=Math.round(start.x+start.width/2),y=Math.round(start.y+start.height/2);
   const cdp=await mobile.context().newCDPSession(mobile);
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+  await mobile.clock.runFor(430);
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await mobile.clock.runFor(390);
+  assert.match(await mobile.locator('#status').textContent(),/Тренировка пройдена/);
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
   await mobile.clock.runFor(430);
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});

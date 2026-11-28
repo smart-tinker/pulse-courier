@@ -1,6 +1,6 @@
-export const TOTAL=12, FLIGHT=340, CHARGE=970;
-export const center=(n,t)=>50+Math.sin(t/(615-n*22)+n*1.39)*(n===0?12:14+n*1.25);
-export const halfGap=n=>n===0?16:15-n*.51;
+export const TOTAL=12, FLIGHT=340, CHARGE=970, TRAINING_GATE=-1;
+export const center=(n,t)=>n===TRAINING_GATE?50:50+Math.sin(t/(615-n*22)+n*1.39)*(n===0?12:14+n*1.25);
+export const halfGap=n=>n<=0?16:15-n*.51;
 export const height=ms=>79-58*Math.min(1,Math.max(0,ms/CHARGE));
 export const newRun=()=>({gate:0,y:79,state:'ready',fired:0});
 export function land(run,hold,arrival) {
