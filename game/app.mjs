@@ -2,6 +2,7 @@ import { TOTAL, FLIGHT, CHARGE, center, halfGap, height, newRun, land, nextBest 
 const q=id=>document.getElementById(id);
 const stage=q('stage'), bestLabel=q('best'), drone=q('drone'), aim=q('aim'), launch=q('launch');
 const meter=q('charge'), status=q('status'), pause=q('pause'), retry=q('retry');
+const miss=q('miss'), impact=q('impact');
 const gates=[...document.querySelectorAll('.gate')], bestKey='pulse-courier.best.v1', timeKey='pulse-courier.time.v1';
 let best=0, bestTime=null;
 try {
@@ -9,7 +10,7 @@ try {
   const saved=Number(localStorage.getItem(timeKey));
   if(Number.isInteger(saved)&&saved>0)bestTime=saved;
 } catch {}
-let run, t, initial, charge, shot, paused, now;
+let run, t, initial, charge, shot, paused, now, missAt;
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const format=n=>String(n).padStart(2,'0'), seconds=ms=>(ms/1000).toFixed(1)+' с';
 function hud(){
@@ -23,7 +24,7 @@ function hud(){
   launch.textContent=run.state==='ready'?'Зажми, чтобы зарядить':'Ещё попытка';
 }
 function reset(){
-  run=newRun();t=0;initial=true;charge=null;shot=null;paused=false;now=null;hud();
+  run=newRun();t=0;initial=true;charge=null;shot=null;paused=false;now=null;missAt=null;miss.hidden=true;impact.style.removeProperty('top');hud();
   status.textContent='Держи пробел или кнопку, затем отпусти.';
 }
 function begin(){
@@ -45,7 +46,13 @@ function finish(){
   run=land(run,shot.held,arrival);
   shot=null;
   if(run.gate>best){best=nextBest(best,run);try{localStorage.setItem(bestKey,String(best))}catch{}}
-  if(run.state==='lost')status.textContent='Мимо просвета. Пройдено '+run.gate+' из '+TOTAL+' КПП.';
+  if(run.state==='lost'){
+    missAt=arrival;
+    impact.style.top=run.y+'%';
+    miss.hidden=false;
+    const where=run.y<center(previous,arrival)?'выше':'ниже';
+    status.textContent='Мимо просвета: '+where+'. Ромб показывает точку попадания, штрихи — границы просвета. Пройдено '+run.gate+' из '+TOTAL+' КПП.';
+  }
   else if(run.state==='won'){
     const elapsed=Math.round(arrival);
     if(bestTime===null||elapsed<bestTime){bestTime=elapsed;try{localStorage.setItem(timeKey,String(bestTime))}catch{}}
@@ -74,7 +81,7 @@ function loop(stamp){
   gates.forEach((g,i)=>{
     const n=run.gate+i;
     g.hidden=n>=TOTAL;
-    if(!g.hidden){g.style.setProperty('--mid',center(n,t)+'%');g.style.setProperty('--gap',halfGap(n)+'%')}
+    if(!g.hidden){g.style.setProperty('--mid',center(n,missAt??t)+'%');g.style.setProperty('--gap',halfGap(n)+'%')}
   });
   requestAnimationFrame(loop);
 }

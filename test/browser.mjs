@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile } from 'node:fs/promises';
+import { FLIGHT, center, halfGap } from '../packed/model.mjs';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const files={'/':'index.html','/app.mjs':'app.mjs','/model.mjs':'model.mjs','/style.css':'style.css'};
 const http=createServer(async(req,res)=>{
@@ -39,14 +40,39 @@ async function screenshot(page,file){
     await page.screenshot({path:process.env.QA_SCREENSHOTS+'/'+file+'.png',animations:'disabled'});
   }
 }
+async function checkMiss(page,hold,side) {
+  const marker=page.locator('#miss');
+  assert.equal(await marker.isVisible(),false);
+  await page.keyboard.down('Space');
+  await page.clock.runFor(hold);
+  const before=await page.locator('.gate.one').evaluate(g=>parseFloat(g.style.getPropertyValue('--mid')));
+  const aimed=await page.locator('#aim').evaluate(g=>parseFloat(g.style.top));
+  // Both releases precede the first gate's peak, so its rendered phase is invertible here.
+  const arrival=615*Math.asin((before-50)/12)+FLIGHT;
+  await page.keyboard.up('Space');
+  await page.clock.runFor(400);
+  assert.match(await page.locator('#status').textContent(),new RegExp('Мимо просвета: '+side));
+  assert.equal(await marker.isVisible(),true);
+  const points=await page.locator('.gate.one').evaluate(g=>{
+    const gate=g.getBoundingClientRect();
+    return ['gap-top','gap-bottom','impact'].map(id=>{
+      const r=document.getElementById(id).getBoundingClientRect();
+      return (r.top+r.height/2-gate.top)/gate.height*100;
+    });
+  });
+  const mid=center(0,arrival), gap=halfGap(0);
+  for(const [actual,expected] of points.map((value,i)=>[value,[mid-gap,mid+gap,aimed][i]]))
+    assert.ok(Math.abs(actual-expected)<0.03,`Marker ${actual} does not match ${expected}`);
+  assert.ok(side==='выше'?points[2]<points[0]:points[2]>points[1]);
+  await page.clock.runFor(150);
+  assert.ok(Math.abs(await page.locator('.gate.one').evaluate(g=>parseFloat(g.style.getPropertyValue('--mid')))-mid)<1e-9);
+  await page.locator('#launch').click();
+  assert.equal(await marker.isVisible(),false);
+}
 async function checkPulse(desktop,mobile) {
   const status=desktop.locator('#status');
-  await desktop.keyboard.down('Space');
-  await desktop.clock.runFor(48);
-  await desktop.keyboard.up('Space');
-  await desktop.clock.runFor(400);
-  assert.match(await status.textContent(),/Мимо просвета/);
-  await desktop.locator('#launch').click();
+  await checkMiss(desktop,48,'ниже');
+  await checkMiss(desktop,864,'выше');
   await desktop.locator('#pause').click();
   assert.equal(await desktop.locator('#launch').isDisabled(),true);
   await desktop.locator('#pause').click();
